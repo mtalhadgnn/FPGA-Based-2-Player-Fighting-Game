@@ -1,0 +1,221 @@
+module health_block_bars(
+    input clk,
+    input [9:0] vga_x,
+    input [9:0] vga_y,
+    input [1:0] p1_health,      // Player 1 health (0-3)
+    input [1:0] p1_block_points, // Player 1 block points (0-3)
+    input [1:0] p2_health,      // Player 2 health (0-3)
+    input [1:0] p2_block_points, // Player 2 block points (0-3)
+    output reg [7:0] bar_color,
+    output reg bar_active
+);
+
+    // Bar dimensions
+    parameter BAR_WIDTH = 20;
+    parameter BAR_HEIGHT = 8;
+    parameter BAR_SPACING = 4;
+    
+    // Player 1 positions (top-left)
+    parameter P1_HEALTH_X = 20;
+    parameter P1_HEALTH_Y = 20;
+    parameter P1_BLOCK_X = 20;
+    parameter P1_BLOCK_Y = 35;
+    
+    // Player 2 positions (top-right)  
+    parameter P2_HEALTH_X = 580;  // 640 - 60
+    parameter P2_HEALTH_Y = 20;
+    parameter P2_BLOCK_X = 580;
+    parameter P2_BLOCK_Y = 35;
+    
+    // Health bar memory (20x8 pixels)
+    reg [7:0] health_bar_full [0:159];  // 20*8 = 160 pixels
+    reg [7:0] health_bar_empty [0:159];
+    
+    // Block bar memory (20x8 pixels)
+    reg [7:0] block_bar_full [0:159];   // 20*8 = 160 pixels
+    reg [7:0] block_bar_empty [0:159];
+    
+    // Initialize hex files
+    initial begin
+        $readmemh("health_bar_full.hex", health_bar_full);
+        $readmemh("health_bar_empty.hex", health_bar_empty);
+        $readmemh("block_bar_full.hex", block_bar_full);
+        $readmemh("block_bar_empty.hex", block_bar_empty);
+    end
+    
+    // Check if we're in any bar area
+    wire in_p1_health1, in_p1_health2, in_p1_health3;
+    wire in_p1_block1, in_p1_block2, in_p1_block3;
+    wire in_p2_health1, in_p2_health2, in_p2_health3;
+    wire in_p2_block1, in_p2_block2, in_p2_block3;
+    
+    // Player 1 health bars
+    assign in_p1_health1 = (vga_x >= P1_HEALTH_X && vga_x < P1_HEALTH_X + BAR_WIDTH &&
+                           vga_y >= P1_HEALTH_Y && vga_y < P1_HEALTH_Y + BAR_HEIGHT);
+    assign in_p1_health2 = (vga_x >= P1_HEALTH_X + (BAR_WIDTH + BAR_SPACING) && vga_x < P1_HEALTH_X + (BAR_WIDTH + BAR_SPACING) + BAR_WIDTH &&
+                           vga_y >= P1_HEALTH_Y && vga_y < P1_HEALTH_Y + BAR_HEIGHT);
+    assign in_p1_health3 = (vga_x >= P1_HEALTH_X + (BAR_WIDTH + BAR_SPACING) * 2 && vga_x < P1_HEALTH_X + (BAR_WIDTH + BAR_SPACING) * 2 + BAR_WIDTH &&
+                           vga_y >= P1_HEALTH_Y && vga_y < P1_HEALTH_Y + BAR_HEIGHT);
+    
+    // Player 1 block bars
+    assign in_p1_block1 = (vga_x >= P1_BLOCK_X && vga_x < P1_BLOCK_X + BAR_WIDTH &&
+                          vga_y >= P1_BLOCK_Y && vga_y < P1_BLOCK_Y + BAR_HEIGHT);
+    assign in_p1_block2 = (vga_x >= P1_BLOCK_X + (BAR_WIDTH + BAR_SPACING) && vga_x < P1_BLOCK_X + (BAR_WIDTH + BAR_SPACING) + BAR_WIDTH &&
+                          vga_y >= P1_BLOCK_Y && vga_y < P1_BLOCK_Y + BAR_HEIGHT);
+    assign in_p1_block3 = (vga_x >= P1_BLOCK_X + (BAR_WIDTH + BAR_SPACING) * 2 && vga_x < P1_BLOCK_X + (BAR_WIDTH + BAR_SPACING) * 2 + BAR_WIDTH &&
+                          vga_y >= P1_BLOCK_Y && vga_y < P1_BLOCK_Y + BAR_HEIGHT);
+    
+    // Player 2 health bars (right-aligned)
+    assign in_p2_health1 = (vga_x >= P2_HEALTH_X - (BAR_WIDTH + BAR_SPACING) * 2 - BAR_WIDTH && vga_x < P2_HEALTH_X - (BAR_WIDTH + BAR_SPACING) * 2 &&
+                           vga_y >= P2_HEALTH_Y && vga_y < P2_HEALTH_Y + BAR_HEIGHT);
+    assign in_p2_health2 = (vga_x >= P2_HEALTH_X - (BAR_WIDTH + BAR_SPACING) - BAR_WIDTH && vga_x < P2_HEALTH_X - (BAR_WIDTH + BAR_SPACING) &&
+                           vga_y >= P2_HEALTH_Y && vga_y < P2_HEALTH_Y + BAR_HEIGHT);
+    assign in_p2_health3 = (vga_x >= P2_HEALTH_X - BAR_WIDTH && vga_x < P2_HEALTH_X &&
+                           vga_y >= P2_HEALTH_Y && vga_y < P2_HEALTH_Y + BAR_HEIGHT);
+    
+    // Player 2 block bars (right-aligned)
+    assign in_p2_block1 = (vga_x >= P2_BLOCK_X - (BAR_WIDTH + BAR_SPACING) * 2 - BAR_WIDTH && vga_x < P2_BLOCK_X - (BAR_WIDTH + BAR_SPACING) * 2 &&
+                          vga_y >= P2_BLOCK_Y && vga_y < P2_BLOCK_Y + BAR_HEIGHT);
+    assign in_p2_block2 = (vga_x >= P2_BLOCK_X - (BAR_WIDTH + BAR_SPACING) - BAR_WIDTH && vga_x < P2_BLOCK_X - (BAR_WIDTH + BAR_SPACING) &&
+                          vga_y >= P2_BLOCK_Y && vga_y < P2_BLOCK_Y + BAR_HEIGHT);
+    assign in_p2_block3 = (vga_x >= P2_BLOCK_X - BAR_WIDTH && vga_x < P2_BLOCK_X &&
+                          vga_y >= P2_BLOCK_Y && vga_y < P2_BLOCK_Y + BAR_HEIGHT);
+    
+    // Calculate memory address for current pixel
+    wire [7:0] mem_addr;
+    reg [7:0] local_x, local_y;
+    assign mem_addr = local_y * BAR_WIDTH + local_x;
+    
+    // Main logic
+    always @(*) begin
+        bar_active = 1'b0;
+        bar_color = 8'b00000000;
+        local_x = 0;
+        local_y = 0;
+        
+        // Player 1 Health Bar 1
+        if (in_p1_health1) begin
+            bar_active = 1'b1;
+            local_x = vga_x - P1_HEALTH_X;
+            local_y = vga_y - P1_HEALTH_Y;
+            if (p1_health >= 1)
+                bar_color = health_bar_full[mem_addr];
+            else
+                bar_color = health_bar_empty[mem_addr];
+        end
+        // Player 1 Health Bar 2
+        else if (in_p1_health2) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P1_HEALTH_X + (BAR_WIDTH + BAR_SPACING));
+            local_y = vga_y - P1_HEALTH_Y;
+            if (p1_health >= 2)
+                bar_color = health_bar_full[mem_addr];
+            else
+                bar_color = health_bar_empty[mem_addr];
+        end
+        // Player 1 Health Bar 3
+        else if (in_p1_health3) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P1_HEALTH_X + (BAR_WIDTH + BAR_SPACING) * 2);
+            local_y = vga_y - P1_HEALTH_Y;
+            if (p1_health >= 3)
+                bar_color = health_bar_full[mem_addr];
+            else
+                bar_color = health_bar_empty[mem_addr];
+        end
+        
+        // Player 1 Block Bar 1
+        else if (in_p1_block1) begin
+            bar_active = 1'b1;
+            local_x = vga_x - P1_BLOCK_X;
+            local_y = vga_y - P1_BLOCK_Y;
+            if (p1_block_points >= 1)
+                bar_color = block_bar_full[mem_addr];
+            else
+                bar_color = block_bar_empty[mem_addr];
+        end
+        // Player 1 Block Bar 2
+        else if (in_p1_block2) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P1_BLOCK_X + (BAR_WIDTH + BAR_SPACING));
+            local_y = vga_y - P1_BLOCK_Y;
+            if (p1_block_points >= 2)
+                bar_color = block_bar_full[mem_addr];
+            else
+                bar_color = block_bar_empty[mem_addr];
+        end
+        // Player 1 Block Bar 3
+        else if (in_p1_block3) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P1_BLOCK_X + (BAR_WIDTH + BAR_SPACING) * 2);
+            local_y = vga_y - P1_BLOCK_Y;
+            if (p1_block_points >= 3)
+                bar_color = block_bar_full[mem_addr];
+            else
+                bar_color = block_bar_empty[mem_addr];
+        end
+        
+        // Player 2 Health Bar 1
+        else if (in_p2_health1) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P2_HEALTH_X - (BAR_WIDTH + BAR_SPACING) * 2 - BAR_WIDTH);
+            local_y = vga_y - P2_HEALTH_Y;
+            if (p2_health >= 1)
+                bar_color = health_bar_full[mem_addr];
+            else
+                bar_color = health_bar_empty[mem_addr];
+        end
+        // Player 2 Health Bar 2
+        else if (in_p2_health2) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P2_HEALTH_X - (BAR_WIDTH + BAR_SPACING) - BAR_WIDTH);
+            local_y = vga_y - P2_HEALTH_Y;
+            if (p2_health >= 2)
+                bar_color = health_bar_full[mem_addr];
+            else
+                bar_color = health_bar_empty[mem_addr];
+        end
+        // Player 2 Health Bar 3
+        else if (in_p2_health3) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P2_HEALTH_X - BAR_WIDTH);
+            local_y = vga_y - P2_HEALTH_Y;
+            if (p2_health >= 3)
+                bar_color = health_bar_full[mem_addr];
+            else
+                bar_color = health_bar_empty[mem_addr];
+        end
+        
+        // Player 2 Block Bar 1
+        else if (in_p2_block1) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P2_BLOCK_X - (BAR_WIDTH + BAR_SPACING) * 2 - BAR_WIDTH);
+            local_y = vga_y - P2_BLOCK_Y;
+            if (p2_block_points >= 1)
+                bar_color = block_bar_full[mem_addr];
+            else
+                bar_color = block_bar_empty[mem_addr];
+        end
+        // Player 2 Block Bar 2
+        else if (in_p2_block2) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P2_BLOCK_X - (BAR_WIDTH + BAR_SPACING) - BAR_WIDTH);
+            local_y = vga_y - P2_BLOCK_Y;
+            if (p2_block_points >= 2)
+                bar_color = block_bar_full[mem_addr];
+            else
+                bar_color = block_bar_empty[mem_addr];
+        end
+        // Player 2 Block Bar 3
+        else if (in_p2_block3) begin
+            bar_active = 1'b1;
+            local_x = vga_x - (P2_BLOCK_X - BAR_WIDTH);
+            local_y = vga_y - P2_BLOCK_Y;
+            if (p2_block_points >= 3)
+                bar_color = block_bar_full[mem_addr];
+            else
+                bar_color = block_bar_empty[mem_addr];
+        end
+    end
+
+endmodule

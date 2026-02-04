@@ -1,0 +1,98 @@
+module player2_fsm(
+    input clk,
+    input reset,
+    input sw1,
+    input clk_60hz,
+    input manual_step,
+    input move_left,
+    input move_right,
+    input attack,
+    output reg [9:0] player,
+    output reg [2:0] state
+);
+
+    
+    parameter IDLE           = 3'b000;
+    parameter MOVING_L       = 3'b001;
+    parameter MOVING_R       = 3'b010;
+    parameter ATTACK_STARTUP = 3'b011;
+    parameter ATTACK_ACTIVE  = 3'b100;
+    parameter ATTACK_RECOVER = 3'b101;
+
+    reg [2:0] current_state, next_state;
+    reg [3:0] frame_counter;
+
+    wire game_clk;
+    assign game_clk = (sw1 == 1'b0) ? clk_60hz : manual_step;
+
+
+    parameter STARTUP_FRAMES  = 5;
+    parameter ACTIVE_FRAMES   = 2;
+    parameter RECOVER_FRAMES  = 15;
+
+    parameter STEP_LEFT   = -3;
+    parameter STEP_RIGHT  = 2;
+    parameter LEFT_BOUND  = 0;
+    parameter RIGHT_BOUND = 576;
+
+    // FSM 
+    always @(posedge game_clk or posedge reset) begin
+        if (reset) begin
+            current_state <= IDLE;
+            player <= 400;
+            frame_counter <= 0;
+        end else begin
+            current_state <= next_state;
+
+            case (current_state)
+                MOVING_L: if (player > LEFT_BOUND)
+                              player <= player + STEP_LEFT;
+                MOVING_R: if (player < RIGHT_BOUND)
+                              player <= player + STEP_RIGHT;
+            endcase
+
+            if (current_state != next_state)
+                frame_counter <= 0;
+            else if (current_state == ATTACK_STARTUP ||
+                     current_state == ATTACK_ACTIVE ||
+                     current_state == ATTACK_RECOVER)
+                frame_counter <= frame_counter + 1;
+            else
+                frame_counter <= 0;
+        end
+    end
+
+    // State
+    always @(*) begin
+        next_state = current_state;
+        case (current_state)
+            IDLE: begin
+                if (attack)         next_state = ATTACK_STARTUP;
+                else if (move_left) next_state = MOVING_L;
+                else if (move_right) next_state = MOVING_R;
+            end
+            MOVING_L: begin
+                if (!move_left)
+                    next_state = IDLE;
+            end
+				MOVING_R: begin
+                if (!move_right)
+                    next_state = IDLE;
+            end
+            ATTACK_STARTUP:
+                if (frame_counter >= STARTUP_FRAMES)
+                    next_state = ATTACK_ACTIVE;
+            ATTACK_ACTIVE:
+                if (frame_counter >= ACTIVE_FRAMES)
+                    next_state = ATTACK_RECOVER;
+            ATTACK_RECOVER:
+                if (frame_counter >= RECOVER_FRAMES)
+                    next_state = IDLE;
+        endcase
+    end
+
+    always @(posedge game_clk) begin
+        state <= current_state;
+    end
+
+endmodule

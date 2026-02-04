@@ -1,0 +1,44 @@
+// Simple render module to draw background and player
+module vga_render(
+    input logic [9:0] h_cnt,
+    input logic [9:0] v_cnt,
+    input logic video_on,
+    input logic [9:0] player_x,
+    input logic [2:0] pstate,
+    output logic [7:0] VGA_R,
+    output logic [7:0] VGA_G,
+    output logic [7:0] VGA_B
+);
+    // Background color: light gray
+    logic [7:0] bg_r = 8'd200;
+    logic [7:0] bg_g = 8'd200;
+    logic [7:0] bg_b = 8'd200;
+
+    // Player sprite: 64x64 rectangle
+    logic in_player;
+    assign in_player = (h_cnt >= player_x && h_cnt < player_x + 64 &&
+                        v_cnt >= 416 && v_cnt < 480); // Bottom of screen
+
+    always_comb begin
+        if (in_player) begin
+            // Color based on state
+            case (pstate)
+                3'b011, 3'b100, 3'b101: begin  // Attack phases
+                    VGA_R = 8'd255; // Red
+                    VGA_G = 8'd50;
+                    VGA_B = 8'd50;
+                end
+                default: begin
+                    VGA_R = 8'd50;  // Blue
+                    VGA_G = 8'd50;
+                    VGA_B = 8'd255;
+                end
+            endcase
+        end else begin
+            // Background color
+            VGA_R = bg_r;
+            VGA_G = bg_g;
+            VGA_B = bg_b;
+        end
+    end
+endmodule

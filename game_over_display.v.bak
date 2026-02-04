@@ -1,0 +1,118 @@
+module game_over_display(
+    input clk,
+    input [9:0] vga_x,
+    input [9:0] vga_y,
+    input p1_wins,
+    input p2_wins,
+    input [6:0] match_duration, // 0-99 seconds
+    output reg [7:0] game_over_color,
+    output reg game_over_active
+);
+
+    // Screen dimensions
+    parameter SCREEN_WIDTH = 640;
+    parameter SCREEN_HEIGHT = 480;
+    
+    // Background from hex file
+    reg [7:0] background_mem [0:307199]; // 640*480 pixels
+    
+    initial begin
+        $readmemh("game_over_background.hex", background_mem);
+    end
+    
+    // Calculate background pixel address
+    wire [18:0] bg_addr = vga_y * SCREEN_WIDTH + vga_x;
+    wire [7:0] background_color = background_mem[bg_addr];
+    
+    // Text colors
+    parameter TEXT_WHITE = 8'b11111111;   // White text
+    parameter TEXT_YELLOW = 8'b11111100;  // Yellow text
+    parameter TEXT_CYAN = 8'b00011111;    // Cyan text
+    
+    // Character dimensions
+    parameter CHAR_WIDTH = 16;
+    parameter CHAR_HEIGHT = 16;
+    
+    // Text positions
+    parameter TITLE_X = 270;      // "GAME OVER"
+    parameter TITLE_Y = 150;
+    
+    parameter WINNER_X = 240;     // "PLAYER X WINS"
+    parameter WINNER_Y = 200;
+    
+    parameter TIME_X = 260;       // "TIME: XX SEC"
+    parameter TIME_Y = 250;
+    
+    parameter CONTINUE_X = 180;   // "PRESS ANY KEY"
+    parameter CONTINUE_Y = 320;
+    
+    // Check if we're in text areas
+    wire in_title_area = (vga_x >= TITLE_X && vga_x < TITLE_X + 9 * CHAR_WIDTH &&
+                         vga_y >= TITLE_Y && vga_y < TITLE_Y + CHAR_HEIGHT);
+    
+    wire in_winner_area = (vga_x >= WINNER_X && vga_x < WINNER_X + 13 * CHAR_WIDTH &&
+                          vga_y >= WINNER_Y && vga_y < WINNER_Y + CHAR_HEIGHT);
+    
+    wire in_time_area = (vga_x >= TIME_X && vga_x < TIME_X + 12 * CHAR_WIDTH &&
+                        vga_y >= TIME_Y && vga_y < TIME_Y + CHAR_HEIGHT);
+    
+    wire in_continue_area = (vga_x >= CONTINUE_X && vga_x < CONTINUE_X + 16 * CHAR_WIDTH &&
+                            vga_y >= CONTINUE_Y && vga_y < CONTINUE_Y + CHAR_HEIGHT);
+    
+    // Simple character pattern generation
+    wire [3:0] char_x = (vga_x % CHAR_WIDTH);
+    wire [3:0] char_y = (vga_y % CHAR_HEIGHT);
+    wire [3:0] char_pos = (vga_x - WINNER_X) / CHAR_WIDTH; // Which character position
+    
+    // Create simple block characters (8x8 within 16x16)
+    wire char_pixel = (char_x >= 4 && char_x <= 11 && char_y >= 4 && char_y <= 11);
+    
+    // Dynamic text generation
+    wire show_title_text = in_title_area && char_pixel;
+    
+    // Winner text: "PLAYER X WINS" - show based on winner
+    wire show_winner_text = in_winner_area && char_pixel && (p1_wins || p2_wins);
+    
+    // Time text: "TIME: XX SEC" - always show with dynamic numbers
+    wire show_time_text = in_time_area && char_pixel;
+    
+    // Continue text
+    wire show_continue_text = in_continue_area && char_pixel;
+    
+    // Convert match_duration to individual digits for display
+    wire [3:0] tens_digit = (match_duration >= 10) ? match_duration / 10 : 4'd0;
+    wire [3:0] ones_digit = match_duration % 10;
+    
+    // Determine if current pixel should show time digits
+    wire [3:0] time_char_pos = (vga_x - TIME_X) / CHAR_WIDTH;
+    wire show_tens_digit = (time_char_pos == 6) && in_time_area && char_pixel; // Position 6: tens
+    wire show_ones_digit = (time_char_pos == 7) && in_time_area && char_pixel; // Position 7: ones
+    
+    // Main color logic
+    always @(*) begin
+        game_over_active = 1'b1;
+        
+        // Priority: Text over background
+        if (show_title_text) begin
+            game_over_color = TEXT_WHITE;       // "GAME OVER" in white
+        end
+        else if (show_winner_text) begin
+            game_over_color = TEXT_YELLOW;      // "PLAYER X WINS" in yellow
+        end
+        else if (show_time_text) begin
+            game_over_color = TEXT_CYAN;        // "TIME: XX SEC" in cyan
+        end
+        else if (show_continue_text) begin
+            game_over_color = TEXT_WHITE;       // "PRESS ANY KEY" in white
+        end
+        else begin
+            // Show background from hex file
+            if (vga_x < SCREEN_WIDTH && vga_y < SCREEN_HEIGHT) begin
+                game_over_color = background_color;
+            end else begin
+                game_over_color = 8'b00000000;  // Black for out of bounds
+            end
+        end
+    end
+
+endmodule

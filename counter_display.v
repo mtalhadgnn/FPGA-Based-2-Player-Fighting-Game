@@ -1,0 +1,181 @@
+module counter_display(
+    input [9:0] x,
+    input [9:0] y,
+    input [6:0] counter_value,
+    output reg [7:0] color_out,
+    input in_counter_area
+);
+
+    // digit patterns (same as countdown but for all digits 0-9)
+    reg [7:0] digit_0 [0:7];
+    reg [7:0] digit_1 [0:7];
+    reg [7:0] digit_2 [0:7];
+    reg [7:0] digit_3 [0:7];
+    reg [7:0] digit_4 [0:7];
+    reg [7:0] digit_5 [0:7];
+    reg [7:0] digit_6 [0:7];
+    reg [7:0] digit_7 [0:7];
+    reg [7:0] digit_8 [0:7];
+    reg [7:0] digit_9 [0:7];
+    
+    initial begin
+        // Digit 0
+        digit_0[0] = 8'b01111100;
+        digit_0[1] = 8'b11000110;
+        digit_0[2] = 8'b11001110;
+        digit_0[3] = 8'b11010110;
+        digit_0[4] = 8'b11100110;
+        digit_0[5] = 8'b11000110;
+        digit_0[6] = 8'b01111100;
+        digit_0[7] = 8'b00000000;
+        
+        // Digit 1
+        digit_1[0] = 8'b00110000;
+        digit_1[1] = 8'b01110000;
+        digit_1[2] = 8'b00110000;
+        digit_1[3] = 8'b00110000;
+        digit_1[4] = 8'b00110000;
+        digit_1[5] = 8'b00110000;
+        digit_1[6] = 8'b11111100;
+        digit_1[7] = 8'b00000000;
+        
+        // Digit 2
+        digit_2[0] = 8'b11111110;
+        digit_2[1] = 8'b00000110;
+        digit_2[2] = 8'b00000110;
+        digit_2[3] = 8'b11111110;
+        digit_2[4] = 8'b11000000;
+        digit_2[5] = 8'b11000000;
+        digit_2[6] = 8'b11111110;
+        digit_2[7] = 8'b00000000;
+        
+        // Digit 3
+        digit_3[0] = 8'b11111110;
+        digit_3[1] = 8'b00000110;
+        digit_3[2] = 8'b00001100;
+        digit_3[3] = 8'b11111110;
+        digit_3[4] = 8'b00000110;
+        digit_3[5] = 8'b00000110;
+        digit_3[6] = 8'b11111110;
+        digit_3[7] = 8'b00000000;
+        
+        // Digit 4
+        digit_4[0] = 8'b11000110;
+        digit_4[1] = 8'b11000110;
+        digit_4[2] = 8'b11000110;
+        digit_4[3] = 8'b11111110;
+        digit_4[4] = 8'b00000110;
+        digit_4[5] = 8'b00000110;
+        digit_4[6] = 8'b00000110;
+        digit_4[7] = 8'b00000000;
+        
+        // Digit 5
+        digit_5[0] = 8'b11111110;
+        digit_5[1] = 8'b11000000;
+        digit_5[2] = 8'b11000000;
+        digit_5[3] = 8'b11111110;
+        digit_5[4] = 8'b00000110;
+        digit_5[5] = 8'b00000110;
+        digit_5[6] = 8'b11111110;
+        digit_5[7] = 8'b00000000;
+        
+        // Digit 6
+        digit_6[0] = 8'b01111100;
+        digit_6[1] = 8'b11000000;
+        digit_6[2] = 8'b11000000;
+        digit_6[3] = 8'b11111100;
+        digit_6[4] = 8'b11000110;
+        digit_6[5] = 8'b11000110;
+        digit_6[6] = 8'b01111100;
+        digit_6[7] = 8'b00000000;
+        
+        // Digit 7
+        digit_7[0] = 8'b11111110;
+        digit_7[1] = 8'b00000110;
+        digit_7[2] = 8'b00001100;
+        digit_7[3] = 8'b00011000;
+        digit_7[4] = 8'b00110000;
+        digit_7[5] = 8'b00110000;
+        digit_7[6] = 8'b00110000;
+        digit_7[7] = 8'b00000000;
+        
+        // Digit 8
+        digit_8[0] = 8'b01111100;
+        digit_8[1] = 8'b11000110;
+        digit_8[2] = 8'b11000110;
+        digit_8[3] = 8'b01111100;
+        digit_8[4] = 8'b11000110;
+        digit_8[5] = 8'b11000110;
+        digit_8[6] = 8'b01111100;
+        digit_8[7] = 8'b00000000;
+        
+        // Digit 9
+        digit_9[0] = 8'b01111100;
+        digit_9[1] = 8'b11000110;
+        digit_9[2] = 8'b11000110;
+        digit_9[3] = 8'b01111110;
+        digit_9[4] = 8'b00000110;
+        digit_9[5] = 8'b00000110;
+        digit_9[6] = 8'b01111100;
+        digit_9[7] = 8'b00000000;
+    end
+    
+    // Calculate tens and ones digits
+    wire [3:0] tens_digit = counter_value / 10;
+    wire [3:0] ones_digit = counter_value % 10;
+    
+    // Position calculations
+    wire [2:0] tens_x = (x - 288);  
+    wire [2:0] ones_x = (x - 304);    
+    wire [2:0] digit_y = (y - 28); 
+    
+    wire in_tens = (x >= 288 && x < 296 && y >= 28 && y < 36);
+    wire in_ones = (x >= 304 && x < 312 && y >= 28 && y < 36);
+    
+    reg tens_pixel, ones_pixel;
+    
+    always @(*) begin
+        case (tens_digit)
+            4'd0: tens_pixel = digit_0[digit_y][tens_x];
+            4'd1: tens_pixel = digit_1[digit_y][tens_x];
+            4'd2: tens_pixel = digit_2[digit_y][tens_x];
+            4'd3: tens_pixel = digit_3[digit_y][tens_x];
+            4'd4: tens_pixel = digit_4[digit_y][tens_x];
+            4'd5: tens_pixel = digit_5[digit_y][tens_x];
+            4'd6: tens_pixel = digit_6[digit_y][tens_x];
+            4'd7: tens_pixel = digit_7[digit_y][tens_x];
+            4'd8: tens_pixel = digit_8[digit_y][tens_x];
+            4'd9: tens_pixel = digit_9[digit_y][tens_x];
+            default: tens_pixel = 0;
+        endcase
+        
+        case (ones_digit)
+            4'd0: ones_pixel = digit_0[digit_y][ones_x];
+            4'd1: ones_pixel = digit_1[digit_y][ones_x];
+            4'd2: ones_pixel = digit_2[digit_y][ones_x];
+            4'd3: ones_pixel = digit_3[digit_y][ones_x];
+            4'd4: ones_pixel = digit_4[digit_y][ones_x];
+            4'd5: ones_pixel = digit_5[digit_y][ones_x];
+            4'd6: ones_pixel = digit_6[digit_y][ones_x];
+            4'd7: ones_pixel = digit_7[digit_y][ones_x];
+            4'd8: ones_pixel = digit_8[digit_y][ones_x];
+            4'd9: ones_pixel = digit_9[digit_y][ones_x];
+            default: ones_pixel = 0;
+        endcase
+    end
+    
+    always @(*) begin
+        if (in_counter_area) begin
+            if (in_tens && tens_pixel) begin
+                color_out = 8'b11111111;  
+            end else if (in_ones && ones_pixel) begin
+                color_out = 8'b11111111; 
+            end else begin
+                color_out = 8'b00100000; 
+            end
+        end else begin
+            color_out = 8'b00000000;
+        end
+    end
+    
+endmodule

@@ -1,0 +1,82 @@
+// Player FSM Module for Milestone Demo
+module player_fsm(
+    input logic clk,
+    input logic reset,
+    input logic sw1,
+    input logic clk_60hz,
+    input logic manual_step,
+    input logic move_left,
+    input logic move_right,
+    input logic attack,
+    output logic [9:0] player_x,
+    output logic [2:0] state
+);
+    typedef enum logic [2:0] {
+        IDLE      = 3'b000,
+        MOVING_L  = 3'b001,
+        MOVING_R  = 3'b010,
+        ATTACK_STARTUP = 3'b011,
+        ATTACK_ACTIVE  = 3'b100,
+        ATTACK_RECOVER = 3'b101
+    } state_t;
+
+    state_t current_state, next_state;
+    logic [3:0] frame_counter;
+    logic game_clk;
+    assign game_clk = (sw1 == 1'b0) ? clk_60hz : manual_step;
+
+    localparam integer STARTUP_FRAMES  = 5;
+    localparam integer ACTIVE_FRAMES   = 2;
+    localparam integer RECOVER_FRAMES  = 16;
+
+    localparam integer STEP_LEFT  = -3;
+    localparam integer STEP_RIGHT = 3;
+    localparam integer LEFT_BOUND = 0;
+    localparam integer RIGHT_BOUND = 640 - 64;
+
+    always_ff @(posedge game_clk or posedge reset) begin
+        if (reset) begin
+            current_state <= IDLE;
+            player_x <= 100;
+            frame_counter <= 0;
+        end else begin
+            current_state <= next_state;
+            case (current_state)
+                MOVING_L: if (player_x > LEFT_BOUND) player_x <= player_x + STEP_LEFT;
+                MOVING_R: if (player_x < RIGHT_BOUND) player_x <= player_x + STEP_RIGHT;
+                default: player_x <= player_x;
+            endcase
+
+            if (current_state == ATTACK_STARTUP || current_state == ATTACK_ACTIVE || current_state == ATTACK_RECOVER)
+                frame_counter <= frame_counter + 1;
+            else
+                frame_counter <= 0;
+        end
+    end
+
+    always_comb begin
+        next_state = current_state;
+        case (current_state)
+            IDLE: begin
+                if (attack) next_state = ATTACK_STARTUP;
+                else if (move_left) next_state = MOVING_L;
+                else if (move_right) next_state = MOVING_R;
+            end
+            MOVING_L, MOVING_R: begin
+                if (attack) next_state = ATTACK_STARTUP;
+                else if (!move_left && !move_right) next_state = IDLE;
+            end
+            ATTACK_STARTUP:
+                if (frame_counter >= STARTUP_FRAMES) next_state = ATTACK_ACTIVE;
+            ATTACK_ACTIVE:
+                if (frame_counter >= ACTIVE_FRAMES) next_state = ATTACK_RECOVER;
+            ATTACK_RECOVER:
+                if (frame_counter >= RECOVER_FRAMES) next_state = IDLE;
+            default: next_state = IDLE;
+        endcase
+    end
+
+    assign state = current_state;
+endmodule
+
+
